@@ -1,0 +1,10 @@
+[
+    {
+        "token": "accessToken 1",
+        "proxy": null
+    },
+    {
+        "token": "accessToken 2",
+        "proxy": "https://test:1234@example.com:8080"
+    }
+]
