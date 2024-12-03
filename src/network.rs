@@ -48,6 +48,17 @@ pub struct Session {
     pub __v: u32,
 }
 
+#[derive(Deserialize, Debug, Clone)]
+pub struct Ping {
+    pub timestamp: String,
+    #[serde(rename = "nodeId")]
+    pub node_id: String,
+    #[serde(rename = "isB7SConnected")]
+    pub is_b7s_connected: bool,
+    pub _id: String,
+    pub __v: u32,
+}
+
 #[derive(Clone)]
 pub struct Bless {
     access_token: String,
@@ -56,6 +67,7 @@ pub struct Bless {
 
 impl Bless {
     const API_BASE_URL: &'static str = "https://gateway-run.bls.dev/api/v1";
+    const X_EXTENSION_VERSION: &'static str = "0.1.5";
 
     pub fn new(client: Client, access_token: String) -> Self {
         Bless {
@@ -102,9 +114,9 @@ impl Bless {
     ) -> Result<ApiResponse> {
         let url = format!("{}/nodes/{}", Self::API_BASE_URL, pub_key);
         println!(
-            "[{}] Registering node with IP: {:?}, Hardware ID: {}",
+            "[{}] Registering node PubKey: {:?}, HardwareID: {}",
             Local::now(),
-            addr,
+            pub_key,
             hardware_id
         );
 
@@ -118,6 +130,7 @@ impl Bless {
             .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.access_token))
+            .header("X-Extension-Version", Self::X_EXTENSION_VERSION)
             .json(&body)
             .send()
             .await
@@ -132,11 +145,20 @@ impl Bless {
             ));
         }
 
-        let data = response
-            .json()
+        let response_text = response
+            .text()
             .await
+            .context("Failed to read response text")?;
+
+        if cfg!(debug_assertions) {
+            println!("[{}] Raw response body: {}", Local::now(), response_text);
+        }
+
+        let data = serde_json::from_str(&response_text)
             .context("Failed to parse registration response")?;
-        println!("[{}] Registration response: {:?}", Local::now(), data);
+
+        println!("[{}] Registration: {:?}", Local::now(), pub_key);
+
         Ok(data)
     }
 
@@ -153,6 +175,7 @@ impl Bless {
             .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.access_token))
+            .header("X-Extension-Version", Self::X_EXTENSION_VERSION)
             .send()
             .await
             .context("Failed to start session")?;
@@ -166,16 +189,69 @@ impl Bless {
             ));
         }
 
-        let data = response
-            .json()
+        let response_text = response
+            .text()
             .await
-            .context("Failed to parse session start response")?;
-        println!("[{}] Start session response: {:?}", Local::now(), data);
+            .context("Failed to read response text")?;
+
+        if cfg!(debug_assertions) {
+            println!("[{}] Raw response body: {}", Local::now(), response_text);
+        }
+
+        let data: ApiResponse =
+            serde_json::from_str(&response_text).context("Failed to parse ping response")?;
+
+        println!("[{}] Started session: {:?}", Local::now(), pub_key);
+
+        Ok(data)
+    }
+
+    // ฟังก์ชันสำหรับหยุด session
+    pub async fn stop_session(&self, pub_key: &str) -> Result<ApiResponse> {
+        let url = format!("{}/nodes/{}/stop-session", Self::API_BASE_URL, pub_key);
+        println!(
+            "[{}] Stoping session for node {}, it might take a while...",
+            Local::now(),
+            pub_key
+        );
+
+        let response = self
+            .client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .header("X-Extension-Version", Self::X_EXTENSION_VERSION)
+            .send()
+            .await
+            .context("Failed to stop session")?;
+
+        // ตรวจสอบสถานะของ response ก่อนแปลง JSON
+        if !response.status().is_success() {
+            return Err(anyhow::anyhow!(
+                "Failed to stop session for node {}: HTTP {}",
+                pub_key,
+                response.status()
+            ));
+        }
+
+        let response_text = response
+            .text()
+            .await
+            .context("Failed to read response text")?;
+
+        if cfg!(debug_assertions) {
+            println!("[{}] Raw response body: {}", Local::now(), response_text);
+        }
+
+        let data: ApiResponse =
+            serde_json::from_str(&response_text).context("Failed to parse ping response")?;
+
+        println!("[{}] Stoped session: {:?}", Local::now(), pub_key);
+
         Ok(data)
     }
 
     // ฟังก์ชันสำหรับ ping node
-    pub async fn ping(&self, pub_key: &str, addr: Option<&str>) -> Result<ApiResponse> {
+    pub async fn ping(&self, pub_key: &str, addr: Option<&str>) -> Result<Ping> {
         let ping_url = format!("{}/nodes/{}/ping", Self::API_BASE_URL, pub_key);
 
         println!(
@@ -185,10 +261,17 @@ impl Bless {
             addr
         );
 
+        let mut body = HashMap::new();
+
+        body.insert("isB7SConnected", true);
+
         let response = self
             .client
             .post(&ping_url)
+            .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", self.access_token))
+            .header("X-Extension-Version", Self::X_EXTENSION_VERSION)
+            .json(&body)
             .send()
             .await
             .context("Failed to send ping request")?;
@@ -207,22 +290,19 @@ impl Bless {
             .text()
             .await
             .context("Failed to read response text")?;
-        // println!("[{}] Raw response body: {}", Local::now(), response_text);
+
+        if cfg!(debug_assertions) {
+            println!("[{}] Raw response body: {}", Local::now(), response_text);
+        }
 
         // Deserialize the JSON
-        let data: ApiResponse =
+        let data: Ping =
             serde_json::from_str(&response_text).context("Failed to parse ping response")?;
 
-        // let data: ApiResponse = response
-        //     .json()
-        //     .await
-        //     .context("Failed to parse ping response")?;
-
-        let status_str = data.status.as_deref().unwrap_or("UNKNOWN");
-        let status_colored = if status_str.to_lowercase() == "ok" {
-            status_str.green()
+        let status_colored = if data.is_b7s_connected {
+            "OK".green()
         } else {
-            status_str.red()
+            "FAIL".red()
         };
 
         println!(

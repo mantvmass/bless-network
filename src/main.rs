@@ -3,12 +3,12 @@ pub mod network;
 use anyhow::Result;
 use chrono::Local;
 use colored::*;
-use dashmap::DashSet;
+use dashmap::DashMap;
 use figlet_rs::FIGfont;
 use reqwest::{Client, Proxy};
 use serde::{Deserialize, Serialize};
 use std::{env, fs, sync::Arc, time::Duration};
-use tokio::time;
+use tokio::{signal, time};
 
 const MAX_PING_ERRORS: u32 = 3;
 const PING_INTERVAL: Duration = Duration::from_secs(120);
@@ -21,7 +21,7 @@ struct Config {
 }
 
 struct AppState {
-    active_nodes: DashSet<String>,
+    active_nodes: DashMap<String, network::Bless>, // เก็บ pub_key และ bless ที่ต่างกันในแต่ละโหนด
 }
 
 // ฟังก์ชันสำหรับประมวลผล node
@@ -35,7 +35,7 @@ async fn process_node(
 
     // ลูปสำหรับ process node
     loop {
-        if state.active_nodes.contains(&pub_key) {
+        if state.active_nodes.contains_key(&pub_key) {
             println!(
                 "[{}] Node {} is already being processed.",
                 Local::now(),
@@ -44,7 +44,7 @@ async fn process_node(
             return;
         }
 
-        state.active_nodes.insert(pub_key.clone());
+        state.active_nodes.insert(pub_key.clone(), bless.clone());
 
         match async {
             bless.register(&pub_key, &node.hardware_id, addr.as_deref()).await?;
@@ -120,8 +120,32 @@ fn display() {
     );
 }
 
+// ฟังก์ชันสำหรับหยุด session ของทุกโหนด
+async fn shutdown(state: Arc<AppState>) {
+    println!("[{}] Shutting down... Cleaning up sessions.", Local::now());
+    for entry in state.active_nodes.iter() {
+        let pub_key = entry.key();
+        let bless = entry.value();
+        if let Err(e) = bless.stop_session(pub_key).await {
+            println!(
+                "[{}] Failed to stop session for node {}: {}",
+                Local::now(),
+                pub_key,
+                e
+            );
+        } else {
+            println!("[{}] Session stopped for node {}", Local::now(), pub_key);
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+
+    #[cfg(debug_assertions)] {
+        println!("Running in debug mode!");
+    }
+
     display();
 
     // รับค่า argument จาก command line
@@ -143,7 +167,7 @@ async fn main() -> Result<()> {
 
     // สร้าง state สำหรับจัดการ active_nodes
     let state = Arc::new(AppState {
-        active_nodes: DashSet::new(),
+        active_nodes: DashMap::new(),
     });
 
     for user in config {
@@ -195,15 +219,15 @@ async fn main() -> Result<()> {
                 is_proxy_mode
             );
 
-            let state = Arc::clone(&state);
-            tokio::spawn(process_node(state, bless.clone(), node, addr.clone()));
+            tokio::spawn(process_node(Arc::clone(&state), bless.clone(), node, addr.clone()));
         }
     }
 
-    // Wait for Ctrl+C signal
-    tokio::signal::ctrl_c()
-        .await
-        .expect("Failed to listen for Ctrl+C");
-    println!("Shutting down...");
+    // สำหรับจัดการการ shutdown
+    // Task สำหรับรับสัญญาณ CTRL + C
+    signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
+    shutdown(state).await;
+
+    println!("Graceful shutdown completed.");
     Ok(())
 }
