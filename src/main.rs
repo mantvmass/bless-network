@@ -189,11 +189,13 @@ async fn main() -> Result<()> {
         }
         .build()?;
 
-        let addr = if user.proxy.is_some() {
-            Some(bless_network::what_my_addr(&client).await?)
-        } else {
-            None
-        };
+        // let addr = if user.proxy.is_some() {
+        //     Some(bless_network::what_my_addr(&client).await?)
+        // } else {
+        //     None
+        // };
+
+        let addr = Some(bless_network::what_my_addr(&client).await?);
 
         let bless = network::Bless::new(client, user.token);
 
