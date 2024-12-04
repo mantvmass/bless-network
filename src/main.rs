@@ -5,20 +5,12 @@ use chrono::Local;
 use colored::*;
 use dashmap::DashMap;
 use figlet_rs::FIGfont;
-use reqwest::{Client, Proxy};
-use serde::{Deserialize, Serialize};
 use std::{env, fs, sync::Arc, time::Duration};
 use tokio::{signal, time};
 
 const MAX_PING_ERRORS: u32 = 3;
 const PING_INTERVAL: Duration = Duration::from_secs(120);
 const RESTART_DELAY: Duration = Duration::from_secs(240);
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct Config {
-    token: String,
-    proxy: Option<String>,
-}
 
 struct AppState {
     active_nodes: DashMap<String, network::Bless>, // เก็บ pub_key และ bless ที่ต่างกันในแต่ละโหนด
@@ -141,8 +133,8 @@ async fn shutdown(state: Arc<AppState>) {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-
-    #[cfg(debug_assertions)] {
+    #[cfg(debug_assertions)]
+    {
         println!("Running in debug mode!");
     }
 
@@ -162,7 +154,7 @@ async fn main() -> Result<()> {
     // โหลด config จากไฟล์
     let config_data = fs::read_to_string(config_file).expect("Failed to read the config file");
 
-    let config: Vec<Config> =
+    let config: Vec<bless_network::Config> =
         serde_json::from_str(&config_data).expect("Failed to parse config file");
 
     // สร้าง state สำหรับจัดการ active_nodes
@@ -171,29 +163,7 @@ async fn main() -> Result<()> {
     });
 
     for user in config {
-        let client = Client::builder();
-        let client = if let Some(proxy_url) = &user.proxy {
-            let proxy = if proxy_url.starts_with("socks") {
-                Proxy::all(proxy_url)?
-            } else {
-                let proxy_url = if proxy_url.starts_with("http") {
-                    proxy_url.to_string()
-                } else {
-                    format!("http://{}", proxy_url)
-                };
-                Proxy::http(&proxy_url)?
-            };
-            client.proxy(proxy)
-        } else {
-            client
-        }
-        .build()?;
-
-        // let addr = if user.proxy.is_some() {
-        //     Some(bless_network::what_my_addr(&client).await?)
-        // } else {
-        //     None
-        // };
+        let client = bless_network::create_client(&user)?;
 
         let addr = Some(bless_network::what_my_addr(&client).await?);
 
@@ -208,7 +178,11 @@ async fn main() -> Result<()> {
 
         for node in nodes {
             let is_proxy_mode = if let Some(addr_value) = &addr {
-                format!("ON/{}", addr_value).green().to_string()
+                if user.proxy.is_some() {
+                    format!("ON/{}", addr_value).green().to_string()
+                } else {
+                    "OFF".red().to_string()
+                }
             } else {
                 "OFF".red().to_string()
             };
@@ -221,7 +195,12 @@ async fn main() -> Result<()> {
                 is_proxy_mode
             );
 
-            tokio::spawn(process_node(Arc::clone(&state), bless.clone(), node, addr.clone()));
+            tokio::spawn(process_node(
+                Arc::clone(&state),
+                bless.clone(),
+                node,
+                addr.clone(),
+            ));
         }
     }
 

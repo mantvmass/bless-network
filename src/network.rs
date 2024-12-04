@@ -258,7 +258,7 @@ impl Bless {
             "[{}] Pinging node {} with IP: {:?}",
             Local::now(),
             pub_key,
-            addr
+            addr.unwrap_or("null")
         );
 
         let mut body = HashMap::new();
@@ -306,11 +306,11 @@ impl Bless {
         };
 
         println!(
-            "[{}] Ping response status: {}, NodeID: {}, IP: {:?}",
+            "[{}] Ping response status: {}, PubKey: {}, IP: {:?}",
             Local::now(),
             status_colored,
             pub_key.cyan(),
-            addr.unwrap_or("None")
+            addr.unwrap_or("null")
         );
 
         Ok(data)
