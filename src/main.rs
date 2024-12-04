@@ -9,8 +9,8 @@ use std::{env, fs, sync::Arc, time::Duration};
 use tokio::{signal, time};
 
 const MAX_PING_ERRORS: u32 = 3;
-const PING_INTERVAL: Duration = Duration::from_secs(120);
-const RESTART_DELAY: Duration = Duration::from_secs(240);
+const PING_INTERVAL: Duration = Duration::from_secs(60 * 10); // 10 นาที
+const RESTART_DELAY: Duration = Duration::from_secs(60 * 5); // 5 นาที
 
 struct AppState {
     active_nodes: DashMap<String, network::Bless>, // เก็บ pub_key และ bless ที่ต่างกันในแต่ละโหนด
