@@ -75,7 +75,6 @@ async fn process_node(
                     }
                     time::sleep(PING_INTERVAL).await;
                 }
-                let _ = tx.send(Err(Error::msg("Max ping errors reached"))).await;
             });
 
             // Ok::<(), anyhow::Error>(())
