@@ -73,4 +73,4 @@ To build the project locally, follow these steps:
 2. Run `cargo build --release` to build the project.
 
 ## License
-This project is licensed under the MIT License. See the [LICENSE](https://github.com/mantvmass/bless-network/LICENSE) file for more details.
+This project is licensed under the MIT License. See the [LICENSE](https://github.com/mantvmass/bless-network/blob/main/LICENSE) file for more details.
