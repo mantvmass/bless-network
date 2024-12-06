@@ -1,12 +1,12 @@
 pub mod network;
 
-use anyhow::Result;
+use anyhow::{Result, Error};
 use chrono::Local;
 use colored::*;
 use dashmap::DashMap;
 use figlet_rs::FIGfont;
 use std::{env, fs, sync::Arc, time::Duration};
-use tokio::{signal, time};
+use tokio::{signal, sync::mpsc, time};
 
 const MAX_PING_ERRORS: u32 = 3;
 const PING_INTERVAL: Duration = Duration::from_secs(60 * 10); // 10 นาที
@@ -47,6 +47,9 @@ async fn process_node(
             let addr = addr.clone();
             let bless = bless.clone(); // Clone `bless` for each spawned task
 
+            // สร้างช่องทางสำหรับรับข้อผิดพลาดจาก tokio::spawn
+            let (tx, mut rx) = mpsc::channel::<Result<(), Error>>(1);
+
             // Spawn task สำหรับ ping
             tokio::spawn(async move {
                 let mut ping_error_count = 0;
@@ -65,15 +68,20 @@ async fn process_node(
                                     MAX_PING_ERRORS,
                                     pub_key
                                 );
+                                let _ = tx.send(Err(Error::msg("Max ping errors reached"))).await;
                                 break;
                             }
                         }
                     }
                     time::sleep(PING_INTERVAL).await;
                 }
+                let _ = tx.send(Err(Error::msg("Max ping errors reached"))).await;
             });
 
-            Ok::<(), anyhow::Error>(())
+            // Ok::<(), anyhow::Error>(())
+            // รอรับผลจากช่องทาง
+            let result = rx.recv().await.unwrap_or(Ok(()));
+            result
         }
         .await
         {

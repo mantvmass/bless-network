@@ -46,6 +46,8 @@ pub struct Session {
     pub start_at: String,
     pub pings: Vec<String>,
     pub __v: u32,
+    #[serde(rename = "lastPingAt")]
+    pub last_ping_at: Option<String>, // สำหรับ ping response
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -57,6 +59,13 @@ pub struct Ping {
     pub is_b7s_connected: bool,
     pub _id: String,
     pub __v: u32,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct PingResponse {
+    #[serde(rename = "activeSession")]
+    pub active_session: Session,
+    pub ping: Ping,
 }
 
 #[derive(Clone)]
@@ -251,7 +260,7 @@ impl Bless {
     }
 
     // ฟังก์ชันสำหรับ ping node
-    pub async fn ping(&self, pub_key: &str, addr: Option<&str>) -> Result<Ping> {
+    pub async fn ping(&self, pub_key: &str, addr: Option<&str>) -> Result<PingResponse> {
         let ping_url = format!("{}/nodes/{}/ping", Self::API_BASE_URL, pub_key);
 
         println!(
@@ -296,10 +305,10 @@ impl Bless {
         }
 
         // Deserialize the JSON
-        let data: Ping =
+        let data: PingResponse =
             serde_json::from_str(&response_text).context("Failed to parse ping response")?;
 
-        let status_colored = if data.is_b7s_connected {
+        let status_colored = if data.ping.is_b7s_connected {
             "OK".green()
         } else {
             "FAIL".red()
