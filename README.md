@@ -50,17 +50,17 @@ main("Your AccessToken");
 
 You can also add custom tags in the JSON for easier identification of your accounts, like so:
 
-    ```json
-    [
-        {
-            "name": "Account 1",
-            "token": "accessToken 2",
-            "proxy": "https://test:1234@example.com:8080"
-        }
-    ]
-    ```
+```json
+[
+    {
+        "name": "Account 1",
+        "token": "accessToken 2",
+        "proxy": "https://test:1234@example.com:8080"
+    }
+]
+```
 
-    - The `name` tag helps you identify accounts but does not affect the program’s functionality.
+- The `name` tag helps you identify accounts but does not affect the program’s functionality.
 
 ## Download
 
