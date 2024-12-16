@@ -20,12 +20,12 @@ pub struct Node {
     pub __v: u32,
     #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "hardwareId")]
-    pub hardware_id: String,
-    #[serde(rename = "hardwareInfo")]
-    pub hardware_info: Option<serde_json::Value>,
-    #[serde(rename = "ipAddress")]
-    pub ip_address: Option<String>,
+    // #[serde(rename = "hardwareId")]
+    // pub hardware_id: String,
+    // #[serde(rename = "hardwareInfo")]
+    // pub hardware_info: Option<serde_json::Value>,
+    // #[serde(rename = "ipAddress")]
+    // pub ip_address: Option<String>,
     #[serde(rename = "updatedAt")]
     pub updated_at: String,
     pub sessions: Vec<Session>,
@@ -114,7 +114,7 @@ impl Bless {
         Ok(nodes)
     }
 
-    // ฟังก์ชันสำหรับลงทะเบียน node
+    // ฟังก์ชันสำหรับลงทะเบียน node | ใช้ครั้งเดียวในการลงทะเบียน node เท่านั้นเหมือน (crypto.js)
     pub async fn register(
         &self,
         pub_key: &str,
@@ -260,7 +260,8 @@ impl Bless {
     }
 
     // ฟังก์ชันสำหรับ ping node
-    pub async fn ping(&self, pub_key: &str, addr: Option<&str>) -> Result<PingResponse> {
+    // pub async fn ping(&self, pub_key: &str, addr: Option<&str>) -> Result<PingResponse> {
+    pub async fn ping(&self, pub_key: &str, addr: Option<&str>) -> Result<Ping> {
         let ping_url = format!("{}/nodes/{}/ping", Self::API_BASE_URL, pub_key);
 
         println!(
@@ -305,10 +306,12 @@ impl Bless {
         }
 
         // Deserialize the JSON
-        let data: PingResponse =
+        // let data: PingResponse =
+        let data: Ping =
             serde_json::from_str(&response_text).context("Failed to parse ping response")?;
 
-        let status_colored = if data.ping.is_b7s_connected {
+        // let status_colored = if data.ping.is_b7s_connected {
+        let status_colored = if data.is_b7s_connected {
             "OK".green()
         } else {
             "FAIL".red()

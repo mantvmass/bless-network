@@ -39,7 +39,7 @@ async fn process_node(
         state.active_nodes.insert(pub_key.clone(), bless.clone());
 
         match async {
-            bless.register(&pub_key, &node.hardware_id, addr.as_deref()).await?;
+            // bless.register(&pub_key, &node.hardware_id, addr.as_deref()).await?;
             bless.init_session(&pub_key).await?;
             // bless.ping(&pub_key, addr.as_deref()).await?; // init ping
 
@@ -106,7 +106,7 @@ fn display() {
     let banner = standard_font.convert("Bless Network").unwrap();
     println!("{}", banner.to_string().bold().blue());
 
-    println!("{}", " Version: 0.1.0".italic().yellow());
+    println!("{}", " Version: 0.1.1".italic().yellow());
     println!(
         "{}",
         " Make by: mantvmass (https://github.com/mantvmass)"
